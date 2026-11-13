@@ -9,6 +9,8 @@ const UM_FLINT = [43.0126, -83.7125];
 // Leave empty to try direct (will usually fail due to CORS).
 const PROXY_URL = ""; // e.g. "https://trace-proxy.workers.dev"
 
+const POLL_INTERVAL_MS = 45000; // check for new calls every 45 seconds
+
 const OPENMHZ_SYSTEMS = [
   { shortName: "mpscs81", name: "MPSCS Washtenaw County", lat: 42.28, lng: -83.74, note: "Ann Arbor / SE Michigan" },
   { shortName: "hocops", name: "Houghton County PoliceFireEMS", lat: 47.12, lng: -88.57, note: "Upper Peninsula" },
@@ -29,6 +31,8 @@ let map, markers = [], activeFilters = new Set(CRIME_TYPES), user = null;
 let currentCenter = UM_FLINT;
 let incidents = [...SAMPLE_INCIDENTS];
 let activeSystem = OPENMHZ_SYSTEMS[0];
+let lastCallTime = null;
+let pollTimer = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("loginForm").addEventListener("submit", (e) => {
@@ -39,6 +43,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("showCreate").addEventListener("click", () => alert("Account creation is simulated in this prototype."));
   document.getElementById("logoutBtn").addEventListener("click", () => {
     user = null;
+    if (pollTimer) clearInterval(pollTimer);
     document.getElementById("app").classList.add("hidden");
     document.getElementById("authScreen").classList.remove("hidden");
   });
@@ -119,14 +124,14 @@ function initMap() {
           weight: 2,
           fillOpacity: 0.9
         }).addTo(map).bindPopup("<b>You are here</b>");
-        loadOpenMHzCalls();
+        startCallPolling();
       },
       (err) => {
         console.warn("Geolocation denied or failed:", err.message);
         activeSystem = selectSystemForLocation(UM_FLINT[0], UM_FLINT[1]);
         updateLocationLabel(`UM-Flint • ${activeSystem.name}`);
         L.marker(UM_FLINT).addTo(map).bindPopup("<b>University of Michigan–Flint</b><br>Campus center");
-        loadOpenMHzCalls();
+        startCallPolling();
       },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
     );
@@ -134,11 +139,17 @@ function initMap() {
     activeSystem = selectSystemForLocation(UM_FLINT[0], UM_FLINT[1]);
     updateLocationLabel(`UM-Flint • ${activeSystem.name}`);
     L.marker(UM_FLINT).addTo(map).bindPopup("<b>University of Michigan–Flint</b><br>Campus center");
-    loadOpenMHzCalls();
+    startCallPolling();
   }
 
   incidents.forEach(addMarker);
   renderIncidents();
+}
+
+function startCallPolling() {
+  loadOpenMHzCalls(true); // initial full load
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(() => loadOpenMHzCalls(false), POLL_INTERVAL_MS);
 }
 
 function updateLocationLabel(text) {
@@ -224,7 +235,7 @@ function showDetails(id) {
     <p class="text-xs"><strong>Time:</strong> ${new Date(inc.time).toLocaleString()}</p>
     <p class="text-xs"><strong>Location:</strong> Approximate (near current view)</p>
     <p class="text-xs"><strong>Source:</strong> ${inc.source}</p>
-    <p class="text-xs mt-2 text-[#687586]">Not an official report. Based on public scanner-style data (like Crime Radar). Verify with official sources. Locations are approximate.</p>
+    <p class="text-xs mt-2 text-[#687586]">Not an official report. Based on public scanner-style data (like Crime Radar). Verify with official sources. Locations are approximate because radio calls rarely include precise GPS.</p>
     <button class="mt-3 text-sm text-[#B7E445]" onclick="alert('Share feature simulated')">Share Alert</button>
   `;
   document.getElementById("modal").classList.remove("hidden");
@@ -234,19 +245,23 @@ function buildCallDescription(call) {
   const tg = call.talkgroupNum || call.talkgroup || "unknown";
   const len = call.len || call.duration || "?";
   const type = guessTypeFromTalkgroup(tg);
-  const templates = [
-    `Recent ${type.toLowerCase()} related scanner traffic on talkgroup ${tg} (${len}s).`,
-    `Dispatch activity recorded on talkgroup ${tg}. Duration ${len} seconds.`,
-    `Public safety call (talkgroup ${tg}) – possible ${type.toLowerCase()} activity.`,
-  ];
-  return templates[Math.floor(Math.random() * templates.length)];
+  const timeStr = call.time ? new Date(call.time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'}) : "recent";
+  return `Live scanner call at ${timeStr} on talkgroup ${tg} (${len}s). Possible ${type.toLowerCase()} activity.`;
 }
 
-async function loadOpenMHzCalls() {
+async function loadOpenMHzCalls(isInitial = false) {
   const statusEl = document.querySelector("header p.text-xs");
-  if (statusEl) statusEl.textContent = `Loading recent calls from ${activeSystem.name}…`;
+  if (statusEl && isInitial) statusEl.textContent = `Loading recent calls from ${activeSystem.name}…`;
 
-  const direct = `https://api.openmhz.com/${activeSystem.shortName}/calls`;
+  // Prefer /calls/newer when we have a last timestamp; fall back to full list
+  let endpoint = `/${activeSystem.shortName}/calls`;
+  if (!isInitial && lastCallTime) {
+    // OpenMHz newer endpoint expects a special timestamp format in some cases;
+    // for simplicity we re-fetch the recent list and de-dupe by ID.
+    endpoint = `/${activeSystem.shortName}/calls`;
+  }
+
+  const direct = `https://api.openmhz.com${endpoint}`;
   const api = PROXY_URL
     ? `${PROXY_URL.replace(/\/$/, "")}?shortName=${encodeURIComponent(activeSystem.shortName)}`
     : direct;
@@ -257,16 +272,14 @@ async function loadOpenMHzCalls() {
     const data = await res.json();
     const calls = data.calls || data || [];
 
-    // Take the most recent calls and turn them into incidents near the user
-    const recent = calls.slice(0, 12);
+    const recent = calls.slice(0, isInitial ? 15 : 8);
     let added = 0;
     recent.forEach((call, idx) => {
-      // Skip if we already have a similar ID
-      const id = `omhz-${call._id || call.id || Date.now() + idx}`;
+      const id = `omhz-${call._id || call.id || (call.time + "-" + idx)}`;
       if (incidents.some(i => i.id === id)) return;
 
-      const offsetLat = (Math.random() - 0.5) * 0.035;
-      const offsetLng = (Math.random() - 0.5) * 0.035;
+      const offsetLat = (Math.random() - 0.5) * 0.03;
+      const offsetLng = (Math.random() - 0.5) * 0.03;
       const type = guessTypeFromTalkgroup(call.talkgroupNum || call.talkgroup || "");
       const newInc = {
         id,
@@ -275,19 +288,29 @@ async function loadOpenMHzCalls() {
         lng: currentCenter[1] + offsetLng,
         time: call.time || new Date().toISOString(),
         description: buildCallDescription(call),
-        source: `OpenMHz (${activeSystem.shortName})`,
-        severity: type === "Shooting" || type === "Robbery" ? "high" : "medium"
+        source: `OpenMHz live (${activeSystem.shortName})`,
+        severity: type === "Shooting" || type === "Robbery" ? "high" : "medium",
+        rawCall: call // keep original metadata
       };
       incidents.unshift(newInc);
       addMarker(newInc);
       added++;
+
+      // track newest time
+      if (call.time && (!lastCallTime || new Date(call.time) > new Date(lastCallTime))) {
+        lastCallTime = call.time;
+      }
     });
+
+    // Keep list from growing forever
+    if (incidents.length > 80) incidents = incidents.slice(0, 80);
 
     renderIncidents();
     if (statusEl) {
+      const now = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
       statusEl.textContent = added
-        ? `${added} recent call-based incidents • ${activeSystem.name}`
-        : `No new calls • ${activeSystem.name}`;
+        ? `+${added} live calls • ${activeSystem.name} • ${now}`
+        : `Live • ${activeSystem.name} • ${now}`;
     }
   } catch (err) {
     console.warn("OpenMHz fetch failed:", err);
@@ -348,9 +371,10 @@ function openSettingsModal() {
       <p><strong>Active system:</strong> ${activeSystem.name} (${activeSystem.shortName})<br>
       ${activeSystem.note || ""}</p>
       <p class="text-[#687586]">Proxy: <code class="text-xs">${PROXY_URL || "(none – direct / CORS limited)"}</code></p>
+      <p class="text-xs">Polling every ${POLL_INTERVAL_MS/1000}s for new calls.</p>
       <hr class="border-[#687586]/40">
-      <p class="text-xs"><strong>Recent incidents</strong> are generated from incoming scanner calls when the proxy (or direct fetch) succeeds. Locations stay approximate.</p>
-      <p class="text-xs"><strong>Crime Radar-style access:</strong> Public scanner audio + automated summaries (not official police data). See README and broadcastify-application-template.md for next steps.</p>
+      <p class="text-xs"><strong>Real-time calls:</strong> New scanner transmissions are fetched on a short interval and turned into incidents using the actual call time, talkgroup, and duration. Locations remain approximate (radio traffic rarely includes GPS).</p>
+      <p class="text-xs"><strong>Better local coverage:</strong> Genesee County is better served by Broadcastify Calls. See broadcastify-application-template.md to apply for their Client API.</p>
     </div>
   `;
   document.getElementById("modal").classList.remove("hidden");
