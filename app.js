@@ -4,6 +4,11 @@
 
 const UM_FLINT = [43.0126, -83.7125];
 
+// Optional: set this to your deployed Cloudflare Worker URL to bypass CORS.
+// Example: "https://trace-openmhz-proxy.your-name.workers.dev"
+// Leave empty to try direct (will usually fail due to CORS).
+const PROXY_URL = ""; // e.g. "https://trace-proxy.workers.dev"
+
 const OPENMHZ_SYSTEMS = [
   { shortName: "mpscs81", name: "MPSCS Washtenaw County", lat: 42.28, lng: -83.74, note: "Ann Arbor / SE Michigan" },
   { shortName: "hocops", name: "Houghton County PoliceFireEMS", lat: 47.12, lng: -88.57, note: "Upper Peninsula" },
@@ -221,49 +226,81 @@ function showDetails(id) {
   document.getElementById("modal").classList.remove("hidden");
 }
 
+function buildCallDescription(call) {
+  const tg = call.talkgroupNum || call.talkgroup || "unknown";
+  const len = call.len || call.duration || "?";
+  const type = guessTypeFromTalkgroup(tg);
+  const templates = [
+    `Recent ${type.toLowerCase()} related scanner traffic on talkgroup ${tg} (${len}s).`,
+    `Dispatch activity recorded on talkgroup ${tg}. Duration ${len} seconds.`,
+    `Public safety call (talkgroup ${tg}) – possible ${type.toLowerCase()} activity.`,
+  ];
+  return templates[Math.floor(Math.random() * templates.length)];
+}
+
 async function loadOpenMHzCalls() {
   const statusEl = document.querySelector("header p.text-xs");
-  if (statusEl) statusEl.textContent = `Loading ${activeSystem.name}…`;
+  if (statusEl) statusEl.textContent = `Loading recent calls from ${activeSystem.name}…`;
 
-  const api = `https://api.openmhz.com/${activeSystem.shortName}/calls`;
+  const direct = `https://api.openmhz.com/${activeSystem.shortName}/calls`;
+  const api = PROXY_URL
+    ? `${PROXY_URL.replace(/\/$/, "")}?shortName=${encodeURIComponent(activeSystem.shortName)}`
+    : direct;
+
   try {
     const res = await fetch(api, { mode: "cors" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const calls = data.calls || data || [];
 
-    const recent = calls.slice(0, 8);
+    // Take the most recent calls and turn them into incidents near the user
+    const recent = calls.slice(0, 12);
+    let added = 0;
     recent.forEach((call, idx) => {
-      const offsetLat = (Math.random() - 0.5) * 0.04;
-      const offsetLng = (Math.random() - 0.5) * 0.04;
+      // Skip if we already have a similar ID
+      const id = `omhz-${call._id || call.id || Date.now() + idx}`;
+      if (incidents.some(i => i.id === id)) return;
+
+      const offsetLat = (Math.random() - 0.5) * 0.035;
+      const offsetLng = (Math.random() - 0.5) * 0.035;
       const type = guessTypeFromTalkgroup(call.talkgroupNum || call.talkgroup || "");
       const newInc = {
-        id: `omhz-${call._id || Date.now() + idx}`,
+        id,
         type,
         lat: currentCenter[0] + offsetLat,
         lng: currentCenter[1] + offsetLng,
         time: call.time || new Date().toISOString(),
-        description: `Scanner call (talkgroup ${call.talkgroupNum || "unknown"}). Duration ${call.len || "?"}s.`,
+        description: buildCallDescription(call),
         source: `OpenMHz (${activeSystem.shortName})`,
         severity: type === "Shooting" || type === "Robbery" ? "high" : "medium"
       };
       incidents.unshift(newInc);
       addMarker(newInc);
+      added++;
     });
 
     renderIncidents();
-    if (statusEl) statusEl.textContent = `${recent.length} calls • ${activeSystem.name}`;
+    if (statusEl) {
+      statusEl.textContent = added
+        ? `${added} recent call-based incidents • ${activeSystem.name}`
+        : `No new calls • ${activeSystem.name}`;
+    }
   } catch (err) {
     console.warn("OpenMHz fetch failed:", err);
-    if (statusEl) statusEl.textContent = `${activeSystem.name} unavailable (CORS)`;
+    if (statusEl) {
+      statusEl.textContent = PROXY_URL
+        ? `${activeSystem.name} proxy error`
+        : `${activeSystem.name} unavailable (CORS – set PROXY_URL)`;
+    }
   }
 }
 
 function guessTypeFromTalkgroup(tg) {
   const t = String(tg).toLowerCase();
-  if (t.includes("shoot") || t.includes("shots") || t.includes("gun")) return "Shooting";
-  if (t.includes("rob") || t.includes("theft")) return "Robbery";
-  if (t.includes("assault") || t.includes("fight")) return "Assault";
+  if (t.includes("shoot") || t.includes("shots") || t.includes("gun") || t.includes("weapon")) return "Shooting";
+  if (t.includes("rob") || t.includes("theft") || t.includes("burglar")) return "Robbery";
+  if (t.includes("assault") || t.includes("fight") || t.includes("battery")) return "Assault";
+  if (t.includes("fire") || t.includes("ems") || t.includes("medical")) return "Other";
   return "Other";
 }
 
@@ -306,9 +343,10 @@ function openSettingsModal() {
       <p><strong>Map center:</strong> ${currentCenter.map(n => n.toFixed(4)).join(", ")}</p>
       <p><strong>Active system:</strong> ${activeSystem.name} (${activeSystem.shortName})<br>
       ${activeSystem.note || ""}</p>
-      <p class="text-[#687586]">Endpoint: <code class="text-xs">https://api.openmhz.com/${activeSystem.shortName}/calls</code></p>
+      <p class="text-[#687586]">Proxy: <code class="text-xs">${PROXY_URL || "(none – direct / CORS limited)"}</code></p>
       <hr class="border-[#687586]/40">
-      <p class="text-xs"><strong>Crime Radar-style access:</strong> Public scanner audio + automated summaries (not official police data). Genesee and Detroit have limited unencrypted public feeds. Best next step is Broadcastify Calls API (approval required) or an OpenMHz proxy to bypass CORS. See README for details.</p>
+      <p class="text-xs"><strong>Recent incidents</strong> are generated from incoming scanner calls when the proxy (or direct fetch) succeeds. Locations stay approximate.</p>
+      <p class="text-xs"><strong>Crime Radar-style access:</strong> Public scanner audio + automated summaries (not official police data). See README and broadcastify-application-template.md for next steps.</p>
     </div>
   `;
   document.getElementById("modal").classList.remove("hidden");
