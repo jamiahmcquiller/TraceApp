@@ -1,16 +1,33 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
-  <rect width="200" height="200" fill="#000000" rx="20"/>
-  <!-- Outer dashed radar ring -->
-  <circle cx="100" cy="100" r="78" fill="none" stroke="#B7E445" stroke-width="7" stroke-dasharray="10 8" stroke-linecap="round"/>
-  <!-- Inner solid ring -->
-  <circle cx="100" cy="100" r="48" fill="none" stroke="#B7E445" stroke-width="3" opacity="0.7"/>
-  <!-- Center dot -->
-  <circle cx="100" cy="100" r="6" fill="#B7E445"/>
-  <!-- Radar sweep line -->
-  <line x1="100" y1="100" x2="100" y2="28" stroke="#B7E445" stroke-width="4" stroke-linecap="round"/>
-  <!-- Small ticks for radar style -->
-  <line x1="100" y1="22" x2="100" y2="32" stroke="#B7E445" stroke-width="3"/>
-  <line x1="168" y1="100" x2="178" y2="100" stroke="#B7E445" stroke-width="3"/>
-  <line x1="22" y1="100" x2="32" y2="100" stroke="#B7E445" stroke-width="3"/>
-  <line x1="100" y1="168" x2="100" y2="178" stroke="#B7E445" stroke-width="3"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <rect width="400" height="400" fill="#000000"/>
+  
+  <!-- Outer dashed circle -->
+  <g fill="none" stroke="#B7E445" stroke-width="18" stroke-linecap="round" stroke-dasharray="28 16">
+    <circle cx="200" cy="200" r="175"/>
+  </g>
+
+  <!-- Three open rings -->
+  <circle cx="120" cy="200" r="28" fill="none" stroke="#B7E445" stroke-width="16"/>
+  <circle cx="280" cy="200" r="28" fill="none" stroke="#B7E445" stroke-width="16"/>
+  <circle cx="200" cy="310" r="28" fill="none" stroke="#B7E445" stroke-width="16"/>
+
+  <!-- Connecting dashed bars -->
+  <g fill="none" stroke="#B7E445" stroke-width="14" stroke-linecap="round" stroke-dasharray="22 14">
+    <!-- Horizontal connector -->
+    <line x1="148" y1="200" x2="252" y2="200"/>
+    <!-- Vertical stem down -->
+    <line x1="200" y1="200" x2="200" y2="282"/>
+  </g>
+
+  <!-- Inner dashed arcs approximating the design -->
+  <g fill="none" stroke="#B7E445" stroke-width="12" stroke-linecap="round" stroke-dasharray="20 12">
+    <!-- Upper left arc -->
+    <path d="M80 140 Q140 70 200 90"/>
+    <!-- Upper right arc -->
+    <path d="M320 140 Q260 70 200 90"/>
+    <!-- Lower left curve -->
+    <path d="M90 260 Q140 310 170 290"/>
+    <!-- Lower right curve -->
+    <path d="M310 260 Q260 310 230 290"/>
+  </g>
 </svg>
