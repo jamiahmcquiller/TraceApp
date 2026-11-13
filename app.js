@@ -1,15 +1,12 @@
 // Trace App – Location-based crime awareness + dynamic OpenMHz
 // Centers on user location and selects the closest available OpenMHz system.
+// Data model matches Crime Radar style (public scanner + approximate mapping).
 
 const UM_FLINT = [43.0126, -83.7125];
 
-// Known Michigan OpenMHz systems (shortName + approximate center).
-// Add more as they appear on https://openmhz.com/systems
 const OPENMHZ_SYSTEMS = [
   { shortName: "mpscs81", name: "MPSCS Washtenaw County", lat: 42.28, lng: -83.74, note: "Ann Arbor / SE Michigan" },
   { shortName: "hocops", name: "Houghton County PoliceFireEMS", lat: 47.12, lng: -88.57, note: "Upper Peninsula" },
-  // Macomb County exists on OpenMHz but shortName varies; use Washtenaw as metro fallback
-  // Detroit / Wayne has no dedicated public OpenMHz system currently.
 ];
 
 const SAMPLE_INCIDENTS = [
@@ -74,16 +71,12 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 }
 
 function selectSystemForLocation(lat, lng) {
-  // Simple region logic + closest system
-  // Flint / Genesee (~43.0, -83.7)
   if (lat > 42.8 && lat < 43.3 && lng > -84.1 && lng < -83.3) {
     return { ...OPENMHZ_SYSTEMS[0], name: "Washtenaw (Flint-area fallback)", note: "No public Genesee OpenMHz system" };
   }
-  // Detroit metro (~42.33, -83.05)
   if (lat > 42.1 && lat < 42.6 && lng > -83.4 && lng < -82.7) {
     return { ...OPENMHZ_SYSTEMS[0], name: "Washtenaw (Detroit-metro fallback)", note: "Closest public system to Detroit" };
   }
-  // Otherwise pick closest known system
   let best = OPENMHZ_SYSTEMS[0];
   let bestDist = Infinity;
   for (const sys of OPENMHZ_SYSTEMS) {
@@ -222,7 +215,7 @@ function showDetails(id) {
     <p class="text-xs"><strong>Time:</strong> ${new Date(inc.time).toLocaleString()}</p>
     <p class="text-xs"><strong>Location:</strong> Approximate (near current view)</p>
     <p class="text-xs"><strong>Source:</strong> ${inc.source}</p>
-    <p class="text-xs mt-2 text-[#687586]">Scanner calls rarely include precise GPS. Pins are placed near your location for context.</p>
+    <p class="text-xs mt-2 text-[#687586]">Not an official report. Based on public scanner-style data (like Crime Radar). Verify with official sources. Locations are approximate.</p>
     <button class="mt-3 text-sm text-[#B7E445]" onclick="alert('Share feature simulated')">Share Alert</button>
   `;
   document.getElementById("modal").classList.remove("hidden");
@@ -307,14 +300,15 @@ function openReportModal() {
 }
 
 function openSettingsModal() {
-  document.getElementById("modalTitle").textContent = "Settings";
+  document.getElementById("modalTitle").textContent = "Settings & Data Sources";
   document.getElementById("modalBody").innerHTML = `
     <div class="space-y-3 text-sm">
       <p><strong>Map center:</strong> ${currentCenter.map(n => n.toFixed(4)).join(", ")}</p>
       <p><strong>Active system:</strong> ${activeSystem.name} (${activeSystem.shortName})<br>
       ${activeSystem.note || ""}</p>
       <p class="text-[#687586]">Endpoint: <code class="text-xs">https://api.openmhz.com/${activeSystem.shortName}/calls</code></p>
-      <p class="text-xs text-[#687586]">System is chosen by your location. Genesee County and Detroit have limited public OpenMHz coverage; many police channels are encrypted. Direct fetches often need a proxy due to CORS.</p>
+      <hr class="border-[#687586]/40">
+      <p class="text-xs"><strong>Crime Radar-style access:</strong> Public scanner audio + automated summaries (not official police data). Genesee and Detroit have limited unencrypted public feeds. Best next step is Broadcastify Calls API (approval required) or an OpenMHz proxy to bypass CORS. See README for details.</p>
     </div>
   `;
   document.getElementById("modal").classList.remove("hidden");
