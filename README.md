@@ -2,7 +2,7 @@
 
 **Trace** is a location-based crime awareness and public safety application designed for residents and students around the University of Michigan–Flint and Genesee County.
 
-Inspired by **CrimeRadar**, it provides an interactive map of incidents, filters by crime type, incident details, user reporting, and live-style police scanner call integration via OpenMHz.
+Inspired by **CrimeRadar**, it provides an interactive map of incidents, filters by crime type, incident details, user reporting, and live-style police scanner call integration.
 
 This repository was created for the CSC-510 group project.
 
@@ -10,12 +10,12 @@ This repository was created for the CSC-510 group project.
 
 - Mock authentication matching the deployed prototype style
 - **Geolocation**: centers the map on your current location (falls back to UM-Flint)
-- **Location-based OpenMHz**: automatically selects the most relevant available scanner system based on where you are (Flint area, Detroit metro, etc.)
+- **Location-based scanner selection**: picks the most relevant available public system based on where you are
 - Interactive Leaflet map with severity-colored markers
 - Incident list + filters by crime type
 - View incident details
 - Report an incident (local simulation, placed near your location)
-- Settings panel with location and active system status
+- Settings panel with location and data-source status
 
 ## Quick Start
 
@@ -25,25 +25,38 @@ npx serve .
 python -m http.server 8080
 ```
 
-Open `http://localhost:8080`. Sign in with any email/password (prototype only).
+Open `http://localhost:8080`. Sign in with any email/password (prototype only). Allow location for the best experience.
 
-Allow location permission when prompted. The map and scanner system will adapt to your position.
+## How Crime Radar Gets Its Data (and How Trace Can Match It)
 
-## OpenMHz Scanner Integration
+Crime Radar does **not** have special private police access. It aggregates publicly available sources:
 
-The app selects an OpenMHz system based on your location and tries to load recent calls:
+- Live radio scanner / dispatch audio feeds
+- Public reports and open safety data
+- Then uses automated (AI) processing to transcribe, summarize, and map the activity
 
-- Flint / Genesee area → Washtenaw County fallback (`mpscs81`) — no public Genesee system exists
-- Detroit metro → Washtenaw County fallback (closest public system; no dedicated Detroit/Wayne OpenMHz feed currently)
-- Other locations → closest known system (Washtenaw, Houghton, etc.)
+Trace currently uses the same public philosophy with OpenMHz (and can be extended to Broadcastify Calls or local open data).
 
-Calls are mapped to approximate locations around your current map center (radio calls rarely include precise GPS).
+### Current limitations for Flint / Detroit
+- Many Genesee County and Detroit-area police talkgroups are encrypted.
+- OpenMHz has sparse public coverage near you (Washtenaw is the closest reliable system).
+- Direct browser calls hit CORS/Cloudflare walls.
+- Precise GPS is rare on scanner traffic; locations are approximate.
 
-**Notes:**
-- Many police talkgroups in Genesee County and the Detroit area are encrypted.
-- Direct browser requests are frequently blocked by CORS or Cloudflare. The app falls back gracefully to sample incidents.
-- For reliable production use, add a small backend proxy (Cloudflare Worker, Node, etc.).
-- More systems can be added to the `OPENMHZ_SYSTEMS` array in `app.js` as they become available on OpenMHz.
+### Paths to Crime Radar-level access
+1. **Broadcastify Calls** (best local option)  
+   Genesee County has an active MPSCS ingest node. Broadcastify offers a Client API for approved, locally-scoped apps. Apply at their developer portal if you want real call metadata + audio for Genesee or Wayne.
+
+2. **OpenMHz + proxy**  
+   Add a tiny backend (Cloudflare Worker or Node) that fetches `https://api.openmhz.com/{shortName}/calls` and returns it to the frontend. This bypasses CORS.
+
+3. **Local open data / blotters**  
+   Flint PD and Genesee Sheriff publish summary stats and FOIA-able records. Real-time geocoded incidents are limited, but daily blotters or CAD exports (when available) can be added.
+
+4. **Full pipeline (advanced)**  
+   Record public scanner audio → transcribe (Whisper or similar) → extract locations/codes → geocode → drop pins. This is essentially what Crime Radar and projects like Blotter do.
+
+The prototype already structures incidents so any of these sources can be swapped in.
 
 ## Project Background
 
