@@ -97,8 +97,12 @@ function selectSystemForLocation(lat, lng) {
 function initMap() {
   if (map) return;
   map = L.map("map").setView(UM_FLINT, 14);
+
+  // Fix OSM 403: OpenStreetMap now requires a valid Referer header
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: '&copy; OpenStreetMap contributors'
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    referrerPolicy: "strict-origin-when-cross-origin",
+    maxZoom: 19
   }).addTo(map);
 
   if (navigator.geolocation) {
