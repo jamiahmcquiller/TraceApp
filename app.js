@@ -1,13 +1,16 @@
-// Trace App – Geolocation-based crime awareness + OpenMHz scanner integration
-// Inspired by CrimeRadar. Centers on user location; pulls live-style calls from OpenMHz when available.
+// Trace App – Location-based crime awareness + dynamic OpenMHz
+// Centers on user location and selects the closest available OpenMHz system.
 
 const UM_FLINT = [43.0126, -83.7125];
 
-// Default OpenMHz system (Washtenaw County MPSCS – nearby Michigan example).
-// Genesee County does not currently have a public OpenMHz system; many LE talkgroups are encrypted.
-// Change OPENMHZ_SHORTNAME to another system shortName from https://openmhz.com/systems if desired.
-const OPENMHZ_SHORTNAME = "mpscs81";
-const OPENMHZ_API = `https://api.openmhz.com/${OPENMHZ_SHORTNAME}/calls`;
+// Known Michigan OpenMHz systems (shortName + approximate center).
+// Add more as they appear on https://openmhz.com/systems
+const OPENMHZ_SYSTEMS = [
+  { shortName: "mpscs81", name: "MPSCS Washtenaw County", lat: 42.28, lng: -83.74, note: "Ann Arbor / SE Michigan" },
+  { shortName: "hocops", name: "Houghton County PoliceFireEMS", lat: 47.12, lng: -88.57, note: "Upper Peninsula" },
+  // Macomb County exists on OpenMHz but shortName varies; use Washtenaw as metro fallback
+  // Detroit / Wayne has no dedicated public OpenMHz system currently.
+];
 
 const SAMPLE_INCIDENTS = [
   { id: 1, type: "Shooting", lat: 43.015, lng: -83.70, time: "2026-11-13T14:22:00Z", description: "Shots fired reported near campus area. Units responding.", source: "Scanner Feed", severity: "high" },
@@ -23,6 +26,7 @@ const CRIME_TYPES = ["Shooting", "Robbery", "Assault", "Theft", "Vandalism", "Bu
 let map, markers = [], activeFilters = new Set(CRIME_TYPES), user = null;
 let currentCenter = UM_FLINT;
 let incidents = [...SAMPLE_INCIDENTS];
+let activeSystem = OPENMHZ_SYSTEMS[0];
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("loginForm").addEventListener("submit", (e) => {
@@ -61,6 +65,37 @@ function showApp() {
   initMap();
 }
 
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function selectSystemForLocation(lat, lng) {
+  // Simple region logic + closest system
+  // Flint / Genesee (~43.0, -83.7)
+  if (lat > 42.8 && lat < 43.3 && lng > -84.1 && lng < -83.3) {
+    return { ...OPENMHZ_SYSTEMS[0], name: "Washtenaw (Flint-area fallback)", note: "No public Genesee OpenMHz system" };
+  }
+  // Detroit metro (~42.33, -83.05)
+  if (lat > 42.1 && lat < 42.6 && lng > -83.4 && lng < -82.7) {
+    return { ...OPENMHZ_SYSTEMS[0], name: "Washtenaw (Detroit-metro fallback)", note: "Closest public system to Detroit" };
+  }
+  // Otherwise pick closest known system
+  let best = OPENMHZ_SYSTEMS[0];
+  let bestDist = Infinity;
+  for (const sys of OPENMHZ_SYSTEMS) {
+    const d = haversineKm(lat, lng, sys.lat, sys.lng);
+    if (d < bestDist) {
+      bestDist = d;
+      best = sys;
+    }
+  }
+  return best;
+}
+
 function initMap() {
   if (map) return;
   map = L.map("map").setView(UM_FLINT, 14);
@@ -68,13 +103,13 @@ function initMap() {
     attribution: '&copy; OpenStreetMap contributors'
   }).addTo(map);
 
-  // Try geolocation first
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         currentCenter = [pos.coords.latitude, pos.coords.longitude];
+        activeSystem = selectSystemForLocation(currentCenter[0], currentCenter[1]);
         map.setView(currentCenter, 14);
-        updateLocationLabel("Your location");
+        updateLocationLabel(`${activeSystem.name}`);
         L.circleMarker(currentCenter, {
           radius: 8,
           fillColor: "#B7E445",
@@ -86,19 +121,20 @@ function initMap() {
       },
       (err) => {
         console.warn("Geolocation denied or failed:", err.message);
-        updateLocationLabel("UM-Flint (fallback)");
+        activeSystem = selectSystemForLocation(UM_FLINT[0], UM_FLINT[1]);
+        updateLocationLabel(`UM-Flint • ${activeSystem.name}`);
         L.marker(UM_FLINT).addTo(map).bindPopup("<b>University of Michigan–Flint</b><br>Campus center");
         loadOpenMHzCalls();
       },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
     );
   } else {
-    updateLocationLabel("UM-Flint (no geolocation)");
+    activeSystem = selectSystemForLocation(UM_FLINT[0], UM_FLINT[1]);
+    updateLocationLabel(`UM-Flint • ${activeSystem.name}`);
     L.marker(UM_FLINT).addTo(map).bindPopup("<b>University of Michigan–Flint</b><br>Campus center");
     loadOpenMHzCalls();
   }
 
-  // Initial markers from sample data
   incidents.forEach(addMarker);
   renderIncidents();
 }
@@ -186,7 +222,7 @@ function showDetails(id) {
     <p class="text-xs"><strong>Time:</strong> ${new Date(inc.time).toLocaleString()}</p>
     <p class="text-xs"><strong>Location:</strong> Approximate (near current view)</p>
     <p class="text-xs"><strong>Source:</strong> ${inc.source}</p>
-    <p class="text-xs mt-2 text-[#687586]">Scanner calls rarely include precise GPS. Location is approximated around your current map center for privacy and practicality.</p>
+    <p class="text-xs mt-2 text-[#687586]">Scanner calls rarely include precise GPS. Pins are placed near your location for context.</p>
     <button class="mt-3 text-sm text-[#B7E445]" onclick="alert('Share feature simulated')">Share Alert</button>
   `;
   document.getElementById("modal").classList.remove("hidden");
@@ -194,15 +230,15 @@ function showDetails(id) {
 
 async function loadOpenMHzCalls() {
   const statusEl = document.querySelector("header p.text-xs");
-  if (statusEl) statusEl.textContent = "Loading scanner calls…";
+  if (statusEl) statusEl.textContent = `Loading ${activeSystem.name}…`;
 
+  const api = `https://api.openmhz.com/${activeSystem.shortName}/calls`;
   try {
-    const res = await fetch(OPENMHZ_API, { mode: "cors" });
+    const res = await fetch(api, { mode: "cors" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const calls = data.calls || data || [];
 
-    // Map recent calls to approximate incidents near current center
     const recent = calls.slice(0, 8);
     recent.forEach((call, idx) => {
       const offsetLat = (Math.random() - 0.5) * 0.04;
@@ -215,7 +251,7 @@ async function loadOpenMHzCalls() {
         lng: currentCenter[1] + offsetLng,
         time: call.time || new Date().toISOString(),
         description: `Scanner call (talkgroup ${call.talkgroupNum || "unknown"}). Duration ${call.len || "?"}s.`,
-        source: "OpenMHz",
+        source: `OpenMHz (${activeSystem.shortName})`,
         severity: type === "Shooting" || type === "Robbery" ? "high" : "medium"
       };
       incidents.unshift(newInc);
@@ -223,11 +259,10 @@ async function loadOpenMHzCalls() {
     });
 
     renderIncidents();
-    if (statusEl) statusEl.textContent = `Scanner: ${recent.length} calls from ${OPENMHZ_SHORTNAME}`;
+    if (statusEl) statusEl.textContent = `${recent.length} calls • ${activeSystem.name}`;
   } catch (err) {
-    console.warn("OpenMHz fetch failed (CORS or no system):", err);
-    if (statusEl) statusEl.textContent = "Scanner unavailable (CORS / no public Genesee feed)";
-    // Keep sample data; optionally notify
+    console.warn("OpenMHz fetch failed:", err);
+    if (statusEl) statusEl.textContent = `${activeSystem.name} unavailable (CORS)`;
   }
 }
 
@@ -275,11 +310,11 @@ function openSettingsModal() {
   document.getElementById("modalTitle").textContent = "Settings";
   document.getElementById("modalBody").innerHTML = `
     <div class="space-y-3 text-sm">
-      <p><strong>Map center:</strong> ${currentCenter.map(n => n.toFixed(4)).join(", ")} (geolocation or fallback)</p>
-      <p><strong>OpenMHz system:</strong> ${OPENMHZ_SHORTNAME} (Washtenaw County example)<br>
-      Genesee County has no public OpenMHz system yet. Many police talkgroups are encrypted.</p>
-      <p class="text-[#687586]">Endpoint: <code class="text-xs">${OPENMHZ_API}</code></p>
-      <p class="text-xs text-[#687586]">Direct browser calls are often blocked by CORS/Cloudflare. A small proxy is needed for reliable production use. Sample incidents remain available.</p>
+      <p><strong>Map center:</strong> ${currentCenter.map(n => n.toFixed(4)).join(", ")}</p>
+      <p><strong>Active system:</strong> ${activeSystem.name} (${activeSystem.shortName})<br>
+      ${activeSystem.note || ""}</p>
+      <p class="text-[#687586]">Endpoint: <code class="text-xs">https://api.openmhz.com/${activeSystem.shortName}/calls</code></p>
+      <p class="text-xs text-[#687586]">System is chosen by your location. Genesee County and Detroit have limited public OpenMHz coverage; many police channels are encrypted. Direct fetches often need a proxy due to CORS.</p>
     </div>
   `;
   document.getElementById("modal").classList.remove("hidden");
