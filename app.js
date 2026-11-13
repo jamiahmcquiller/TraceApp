@@ -76,14 +76,15 @@ function initMap() {
 }
 
 function addMarker(inc) {
-  const color = inc.severity === "high" ? "red" : inc.severity === "medium" ? "orange" : "yellow";
+  // Signal Amber for high/medium caution, Electric Lime for low
+  const color = inc.severity === "high" ? "#F0A23A" : inc.severity === "medium" ? "#F0A23A" : "#B7E445";
   const marker = L.circleMarker([inc.lat, inc.lng], {
     radius: 10,
     fillColor: color,
-    color: "#fff",
+    color: "#20262E",
     weight: 2,
     opacity: 1,
-    fillOpacity: 0.8
+    fillOpacity: 0.85
   }).addTo(map);
 
   marker.bindPopup(`
@@ -91,7 +92,7 @@ function addMarker(inc) {
     ${new Date(inc.time).toLocaleString()}<br>
     ${inc.description}<br>
     <small>Source: ${inc.source}</small><br>
-    <button onclick="showDetails(${inc.id})" class="mt-1 text-red-400 text-sm">View Details</button>
+    <button onclick="showDetails(${inc.id})" class="mt-1 text-[#B7E445] text-sm">View Details</button>
   `);
   marker.incident = inc;
   markers.push(marker);
@@ -105,14 +106,14 @@ function renderIncidents() {
 
   filtered.forEach(inc => {
     const el = document.createElement("div");
-    el.className = "p-3 rounded-lg bg-slate-700/60 hover:bg-slate-700 cursor-pointer border border-slate-600";
+    el.className = "p-3 rounded-lg bg-[#2a323c]/80 hover:bg-[#323a45] cursor-pointer border border-[#687586]/40 incident-card";
     el.innerHTML = `
       <div class="flex justify-between items-start">
         <span class="font-medium text-sm">${inc.type}</span>
-        <span class="text-xs text-slate-400">${new Date(inc.time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+        <span class="text-xs text-[#687586]">${new Date(inc.time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
       </div>
-      <p class="text-xs text-slate-300 mt-1 line-clamp-2">${inc.description}</p>
-      <p class="text-xs text-slate-500 mt-1">${inc.source}</p>
+      <p class="text-xs text-[#F4F6F8]/80 mt-1 line-clamp-2">${inc.description}</p>
+      <p class="text-xs text-[#687586] mt-1">${inc.source}</p>
     `;
     el.onclick = () => {
       map.setView([inc.lat, inc.lng], 16);
@@ -135,7 +136,7 @@ function renderFilters() {
     const label = document.createElement("label");
     label.className = "flex items-center gap-2 cursor-pointer";
     const checked = activeFilters.has(type);
-    label.innerHTML = `<input type="checkbox" ${checked ? "checked" : ""} class="rounded"> ${type}`;
+    label.innerHTML = `<input type="checkbox" ${checked ? "checked" : ""} class="rounded accent-[#B7E445]"> ${type}`;
     label.querySelector("input").onchange = (e) => {
       if (e.target.checked) activeFilters.add(type);
       else activeFilters.delete(type);
@@ -150,12 +151,12 @@ function showDetails(id) {
   if (!inc) return;
   document.getElementById("modalTitle").textContent = inc.type;
   document.getElementById("modalBody").innerHTML = `
-    <p class="text-sm text-slate-300 mb-2">${inc.description}</p>
+    <p class="text-sm text-[#F4F6F8]/90 mb-2">${inc.description}</p>
     <p class="text-xs"><strong>Time:</strong> ${new Date(inc.time).toLocaleString()}</p>
     <p class="text-xs"><strong>Location:</strong> Near UM-Flint / Genesee County</p>
     <p class="text-xs"><strong>Source:</strong> ${inc.source}</p>
-    <p class="text-xs mt-2 text-slate-400">Approximate location shown for privacy. Connect real OpenMHz or local open data feeds for live calls.</p>
-    <button class="mt-3 text-sm text-red-400" onclick="alert('Share feature simulated – see Phase 4A tasks')">Share Alert</button>
+    <p class="text-xs mt-2 text-[#687586]">Approximate location shown for privacy. Connect real OpenMHz or local open data feeds for live calls.</p>
+    <button class="mt-3 text-sm text-[#B7E445]" onclick="alert('Share feature simulated – see Phase 4A tasks')">Share Alert</button>
   `;
   document.getElementById("modal").classList.remove("hidden");
 }
@@ -163,12 +164,12 @@ function showDetails(id) {
 function openReportModal() {
   document.getElementById("modalTitle").textContent = "Report an Incident";
   document.getElementById("modalBody").innerHTML = `
-    <select id="reportType" class="w-full mb-3 px-3 py-2 bg-slate-700 rounded-lg">
+    <select id="reportType" class="w-full mb-3 px-3 py-2 bg-[#2a323c] rounded-lg border border-[#687586]/40">
       ${CRIME_TYPES.map(t => `<option>${t}</option>`).join("")}
     </select>
-    <textarea id="reportDesc" placeholder="Describe what you observed..." class="w-full mb-3 px-3 py-2 bg-slate-700 rounded-lg h-24"></textarea>
-    <button id="submitReport" class="w-full bg-red-600 hover:bg-red-700 py-2 rounded-lg">Submit Report</button>
-    <p class="text-xs text-slate-500 mt-2">Reports are local-only in this prototype. In production they would be moderated and optionally shared with official channels.</p>
+    <textarea id="reportDesc" placeholder="Describe what you observed..." class="w-full mb-3 px-3 py-2 bg-[#2a323c] rounded-lg h-24 border border-[#687586]/40"></textarea>
+    <button id="submitReport" class="w-full bg-[#B7E445] hover:bg-[#c5ed6a] text-[#20262E] py-2 rounded-lg font-medium">Submit Report</button>
+    <p class="text-xs text-[#687586] mt-2">Reports are local-only in this prototype. In production they would be moderated and optionally shared with official channels.</p>
   `;
   document.getElementById("modal").classList.remove("hidden");
   document.getElementById("submitReport").onclick = () => {
@@ -198,9 +199,9 @@ function openSettingsModal() {
     <div class="space-y-3 text-sm">
       <p><strong>Saved Location:</strong> University of Michigan–Flint / Flint, MI</p>
       <p><strong>Notifications:</strong> Simulated – enable alerts for shooting/robbery near campus.</p>
-      <p class="text-slate-400">API Status: Ready for OpenMHz / public scanner feeds.<br>
+      <p class="text-[#687586]">API Status: Ready for OpenMHz / public scanner feeds.<br>
       Example endpoint: <code class="text-xs">https://api.openmhz.com/{shortName}/calls</code></p>
-      <p class="text-xs text-slate-500">See README for connecting real police scanner call data (OpenMHz, Broadcastify Calls, or local open data).</p>
+      <p class="text-xs text-[#687586]">See README for connecting real police scanner call data (OpenMHz, Broadcastify Calls, or local open data).</p>
     </div>
   `;
   document.getElementById("modal").classList.remove("hidden");
