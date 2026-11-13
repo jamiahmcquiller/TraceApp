@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PHASE – Crime Awareness for Flint</title>
-  <meta name="description" content="PHASE: Location-based crime awareness and public safety app inspired by CrimeRadar. Focused on University of Michigan-Flint and Genesee County.">
+  <title>Trace – Crime Awareness for Flint</title>
+  <meta name="description" content="Trace: Location-based crime awareness and public safety app inspired by CrimeRadar. Focused on University of Michigan-Flint and Genesee County.">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -21,10 +21,10 @@
   <div id="authScreen" class="auth-screen flex items-center justify-center p-4">
     <div class="w-full max-w-md bg-slate-800/80 backdrop-blur rounded-2xl p-8 shadow-2xl border border-slate-700">
       <div class="text-center mb-8">
-        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-600 mb-4 text-2xl font-bold">P</div>
-        <h1 class="text-3xl font-bold tracking-tight">PHASE</h1>
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-600 mb-4 text-2xl font-bold">T</div>
+        <h1 class="text-3xl font-bold tracking-tight">Trace</h1>
         <p class="text-slate-400 mt-1">Welcome back.</p>
-        <p class="text-sm text-slate-500">Sign in to your PHASE experience.</p>
+        <p class="text-sm text-slate-500">Sign in to your Trace experience.</p>
       </div>
       <form id="loginForm" class="space-y-4">
         <div>
@@ -38,7 +38,7 @@
         <button type="button" class="text-sm text-red-400 hover:text-red-300">Forgot Password?</button>
         <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded-lg transition">Sign In</button>
       </form>
-      <p class="text-center text-sm text-slate-400 mt-6">New to PHASE? <button id="showCreate" class="text-red-400 hover:underline">Create Account</button></p>
+      <p class="text-center text-sm text-slate-400 mt-6">New to Trace? <button id="showCreate" class="text-red-400 hover:underline">Create Account</button></p>
       <p class="text-center text-xs text-slate-500 mt-4">Prototype only · No real accounts are created.</p>
     </div>
   </div>
@@ -47,9 +47,9 @@
   <div id="app" class="hidden h-screen flex flex-col">
     <header class="bg-slate-800 border-b border-slate-700 px-4 py-3 flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-full bg-red-600 flex items-center justify-center font-bold">P</div>
+        <div class="w-10 h-10 rounded-full bg-red-600 flex items-center justify-center font-bold">T</div>
         <div>
-          <h1 class="text-xl font-bold">PHASE</h1>
+          <h1 class="text-xl font-bold">Trace</h1>
           <p class="text-xs text-slate-400">Flint / UM-Flint • Genesee County</p>
         </div>
       </div>
