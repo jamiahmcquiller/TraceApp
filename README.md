@@ -1,10 +1,10 @@
-# PHASE
+# Trace
 
-**PHASE** is a location-based crime awareness and public safety application designed for residents and students around the University of Michigan–Flint and Genesee County.
+**Trace** is a location-based crime awareness and public safety application designed for residents and students around the University of Michigan–Flint and Genesee County.
 
 Inspired by **CrimeRadar**, it provides an interactive map of incidents, filters by crime type, incident details, user reporting, and a structure ready for live police scanner / dispatch call data.
 
-This repository was created for the CSC-510 group project (Trace / PHASE).
+This repository was created for the CSC-510 group project.
 
 ## Features (Prototype)
 
@@ -32,7 +32,7 @@ Sign in with any email/password (prototype only).
 
 ## Connecting Real Police Scanner / Call Data
 
-PHASE is structured to ingest call metadata similar to open-source scanner platforms:
+Trace is structured to ingest call metadata similar to open-source scanner platforms:
 
 - **OpenMHz** (open source: [openmhz/trunk-server](https://github.com/openmhz/trunk-server))  
   Public API pattern: `https://api.openmhz.com/{shortName}/calls`  
