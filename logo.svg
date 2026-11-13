@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <rect width="200" height="200" fill="#000"/>
+  <!-- Outer dashed circle -->
+  <circle cx="100" cy="100" r="85" fill="none" stroke="#B7E445" stroke-width="6" stroke-dasharray="8 6"/>
+  <!-- Internal elements approximating the design -->
+  <circle cx="60" cy="100" r="12" fill="none" stroke="#B7E445" stroke-width="4"/>
+  <circle cx="140" cy="100" r="12" fill="none" stroke="#B7E445" stroke-width="4"/>
+  <circle cx="100" cy="160" r="12" fill="none" stroke="#B7E445" stroke-width="4"/>
+  <!-- Connecting lines -->
+  <line x1="72" y1="100" x2="128" y2="100" stroke="#B7E445" stroke-width="4" stroke-dasharray="6 4"/>
+  <line x1="100" y1="112" x2="100" y2="148" stroke="#B7E445" stroke-width="4" stroke-dasharray="6 4"/>
+  <!-- Additional dashed curves for the abstract design -->
+  <path d="M40 60 Q70 40 100 50" fill="none" stroke="#B7E445" stroke-width="4" stroke-dasharray="6 5"/>
+  <path d="M160 60 Q130 40 100 50" fill="none" stroke="#B7E445" stroke-width="4" stroke-dasharray="6 5"/>
+  <path d="M40 140 Q70 160 100 150" fill="none" stroke="#B7E445" stroke-width="4" stroke-dasharray="6 5"/>
+  <path d="M160 140 Q130 160 100 150" fill="none" stroke="#B7E445" stroke-width="4" stroke-dasharray="6 5"/>
+</svg>
