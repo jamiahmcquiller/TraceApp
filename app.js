@@ -1,8 +1,13 @@
-// Trace App – Crime Awareness for Flint / UM-Flint
-// Inspired by CrimeRadar. Connects to public scanner-style data (OpenMHz-compatible structure).
-// Mock auth + sample incidents for prototype. Real API integration ready.
+// Trace App – Geolocation-based crime awareness + OpenMHz scanner integration
+// Inspired by CrimeRadar. Centers on user location; pulls live-style calls from OpenMHz when available.
 
 const UM_FLINT = [43.0126, -83.7125];
+
+// Default OpenMHz system (Washtenaw County MPSCS – nearby Michigan example).
+// Genesee County does not currently have a public OpenMHz system; many LE talkgroups are encrypted.
+// Change OPENMHZ_SHORTNAME to another system shortName from https://openmhz.com/systems if desired.
+const OPENMHZ_SHORTNAME = "mpscs81";
+const OPENMHZ_API = `https://api.openmhz.com/${OPENMHZ_SHORTNAME}/calls`;
 
 const SAMPLE_INCIDENTS = [
   { id: 1, type: "Shooting", lat: 43.015, lng: -83.70, time: "2026-11-13T14:22:00Z", description: "Shots fired reported near campus area. Units responding.", source: "Scanner Feed", severity: "high" },
@@ -16,9 +21,10 @@ const SAMPLE_INCIDENTS = [
 const CRIME_TYPES = ["Shooting", "Robbery", "Assault", "Theft", "Vandalism", "Burglary", "Other"];
 
 let map, markers = [], activeFilters = new Set(CRIME_TYPES), user = null;
+let currentCenter = UM_FLINT;
+let incidents = [...SAMPLE_INCIDENTS];
 
 document.addEventListener("DOMContentLoaded", () => {
-  // Auth
   document.getElementById("loginForm").addEventListener("submit", (e) => {
     e.preventDefault();
     user = { email: document.getElementById("email").value };
@@ -31,7 +37,6 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("authScreen").classList.remove("hidden");
   });
 
-  // Filters
   document.getElementById("filterBtn").addEventListener("click", () => {
     document.getElementById("filterPanel").classList.toggle("hidden");
   });
@@ -41,12 +46,8 @@ document.addEventListener("DOMContentLoaded", () => {
     renderIncidents();
   });
 
-  // Report
   document.getElementById("reportBtn").addEventListener("click", openReportModal);
-
-  // Settings
   document.getElementById("settingsBtn").addEventListener("click", openSettingsModal);
-
   document.getElementById("modalClose").addEventListener("click", () => {
     document.getElementById("modal").classList.add("hidden");
   });
@@ -58,7 +59,6 @@ function showApp() {
   document.getElementById("authScreen").classList.add("hidden");
   document.getElementById("app").classList.remove("hidden");
   initMap();
-  renderIncidents();
 }
 
 function initMap() {
@@ -68,15 +68,47 @@ function initMap() {
     attribution: '&copy; OpenStreetMap contributors'
   }).addTo(map);
 
-  // Campus marker
-  L.marker(UM_FLINT).addTo(map)
-    .bindPopup("<b>University of Michigan–Flint</b><br>Campus center");
+  // Try geolocation first
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        currentCenter = [pos.coords.latitude, pos.coords.longitude];
+        map.setView(currentCenter, 14);
+        updateLocationLabel("Your location");
+        L.circleMarker(currentCenter, {
+          radius: 8,
+          fillColor: "#B7E445",
+          color: "#20262E",
+          weight: 2,
+          fillOpacity: 0.9
+        }).addTo(map).bindPopup("<b>You are here</b>");
+        loadOpenMHzCalls();
+      },
+      (err) => {
+        console.warn("Geolocation denied or failed:", err.message);
+        updateLocationLabel("UM-Flint (fallback)");
+        L.marker(UM_FLINT).addTo(map).bindPopup("<b>University of Michigan–Flint</b><br>Campus center");
+        loadOpenMHzCalls();
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+    );
+  } else {
+    updateLocationLabel("UM-Flint (no geolocation)");
+    L.marker(UM_FLINT).addTo(map).bindPopup("<b>University of Michigan–Flint</b><br>Campus center");
+    loadOpenMHzCalls();
+  }
 
-  SAMPLE_INCIDENTS.forEach(addMarker);
+  // Initial markers from sample data
+  incidents.forEach(addMarker);
+  renderIncidents();
+}
+
+function updateLocationLabel(text) {
+  const el = document.querySelector("header p.text-xs");
+  if (el) el.textContent = text;
 }
 
 function addMarker(inc) {
-  // Signal Amber for high/medium caution, Electric Lime for low
   const color = inc.severity === "high" ? "#F0A23A" : inc.severity === "medium" ? "#F0A23A" : "#B7E445";
   const marker = L.circleMarker([inc.lat, inc.lng], {
     radius: 10,
@@ -101,8 +133,8 @@ function addMarker(inc) {
 function renderIncidents() {
   const list = document.getElementById("incidentList");
   list.innerHTML = "";
-  const filtered = SAMPLE_INCIDENTS.filter(i => activeFilters.has(i.type));
-  filtered.sort((a,b) => new Date(b.time) - new Date(a.time));
+  const filtered = incidents.filter(i => activeFilters.has(i.type));
+  filtered.sort((a, b) => new Date(b.time) - new Date(a.time));
 
   filtered.forEach(inc => {
     const el = document.createElement("div");
@@ -122,7 +154,6 @@ function renderIncidents() {
     list.appendChild(el);
   });
 
-  // Update markers visibility
   markers.forEach(m => {
     if (activeFilters.has(m.incident.type)) m.addTo(map);
     else map.removeLayer(m);
@@ -147,18 +178,65 @@ function renderFilters() {
 }
 
 function showDetails(id) {
-  const inc = SAMPLE_INCIDENTS.find(i => i.id === id);
+  const inc = incidents.find(i => i.id === id);
   if (!inc) return;
   document.getElementById("modalTitle").textContent = inc.type;
   document.getElementById("modalBody").innerHTML = `
     <p class="text-sm text-[#F4F6F8]/90 mb-2">${inc.description}</p>
     <p class="text-xs"><strong>Time:</strong> ${new Date(inc.time).toLocaleString()}</p>
-    <p class="text-xs"><strong>Location:</strong> Near UM-Flint / Genesee County</p>
+    <p class="text-xs"><strong>Location:</strong> Approximate (near current view)</p>
     <p class="text-xs"><strong>Source:</strong> ${inc.source}</p>
-    <p class="text-xs mt-2 text-[#687586]">Approximate location shown for privacy. Connect real OpenMHz or local open data feeds for live calls.</p>
-    <button class="mt-3 text-sm text-[#B7E445]" onclick="alert('Share feature simulated – see Phase 4A tasks')">Share Alert</button>
+    <p class="text-xs mt-2 text-[#687586]">Scanner calls rarely include precise GPS. Location is approximated around your current map center for privacy and practicality.</p>
+    <button class="mt-3 text-sm text-[#B7E445]" onclick="alert('Share feature simulated')">Share Alert</button>
   `;
   document.getElementById("modal").classList.remove("hidden");
+}
+
+async function loadOpenMHzCalls() {
+  const statusEl = document.querySelector("header p.text-xs");
+  if (statusEl) statusEl.textContent = "Loading scanner calls…";
+
+  try {
+    const res = await fetch(OPENMHZ_API, { mode: "cors" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const calls = data.calls || data || [];
+
+    // Map recent calls to approximate incidents near current center
+    const recent = calls.slice(0, 8);
+    recent.forEach((call, idx) => {
+      const offsetLat = (Math.random() - 0.5) * 0.04;
+      const offsetLng = (Math.random() - 0.5) * 0.04;
+      const type = guessTypeFromTalkgroup(call.talkgroupNum || call.talkgroup || "");
+      const newInc = {
+        id: `omhz-${call._id || Date.now() + idx}`,
+        type,
+        lat: currentCenter[0] + offsetLat,
+        lng: currentCenter[1] + offsetLng,
+        time: call.time || new Date().toISOString(),
+        description: `Scanner call (talkgroup ${call.talkgroupNum || "unknown"}). Duration ${call.len || "?"}s.`,
+        source: "OpenMHz",
+        severity: type === "Shooting" || type === "Robbery" ? "high" : "medium"
+      };
+      incidents.unshift(newInc);
+      addMarker(newInc);
+    });
+
+    renderIncidents();
+    if (statusEl) statusEl.textContent = `Scanner: ${recent.length} calls from ${OPENMHZ_SHORTNAME}`;
+  } catch (err) {
+    console.warn("OpenMHz fetch failed (CORS or no system):", err);
+    if (statusEl) statusEl.textContent = "Scanner unavailable (CORS / no public Genesee feed)";
+    // Keep sample data; optionally notify
+  }
+}
+
+function guessTypeFromTalkgroup(tg) {
+  const t = String(tg).toLowerCase();
+  if (t.includes("shoot") || t.includes("shots") || t.includes("gun")) return "Shooting";
+  if (t.includes("rob") || t.includes("theft")) return "Robbery";
+  if (t.includes("assault") || t.includes("fight")) return "Assault";
+  return "Other";
 }
 
 function openReportModal() {
@@ -169,7 +247,7 @@ function openReportModal() {
     </select>
     <textarea id="reportDesc" placeholder="Describe what you observed..." class="w-full mb-3 px-3 py-2 bg-[#2a323c] rounded-lg h-24 border border-[#687586]/40"></textarea>
     <button id="submitReport" class="w-full bg-[#B7E445] hover:bg-[#c5ed6a] text-[#20262E] py-2 rounded-lg font-medium">Submit Report</button>
-    <p class="text-xs text-[#687586] mt-2">Reports are local-only in this prototype. In production they would be moderated and optionally shared with official channels.</p>
+    <p class="text-xs text-[#687586] mt-2">Reports are local-only in this prototype.</p>
   `;
   document.getElementById("modal").classList.remove("hidden");
   document.getElementById("submitReport").onclick = () => {
@@ -178,18 +256,18 @@ function openReportModal() {
     const newInc = {
       id: Date.now(),
       type,
-      lat: UM_FLINT[0] + (Math.random()-0.5)*0.02,
-      lng: UM_FLINT[1] + (Math.random()-0.5)*0.02,
+      lat: currentCenter[0] + (Math.random()-0.5)*0.02,
+      lng: currentCenter[1] + (Math.random()-0.5)*0.02,
       time: new Date().toISOString(),
       description: desc,
       source: "User Report",
       severity: "medium"
     };
-    SAMPLE_INCIDENTS.unshift(newInc);
+    incidents.unshift(newInc);
     addMarker(newInc);
     renderIncidents();
     document.getElementById("modal").classList.add("hidden");
-    alert("Report submitted (simulated). Pin added to map.");
+    alert("Report submitted (simulated). Pin added near your location.");
   };
 }
 
@@ -197,15 +275,14 @@ function openSettingsModal() {
   document.getElementById("modalTitle").textContent = "Settings";
   document.getElementById("modalBody").innerHTML = `
     <div class="space-y-3 text-sm">
-      <p><strong>Saved Location:</strong> University of Michigan–Flint / Flint, MI</p>
-      <p><strong>Notifications:</strong> Simulated – enable alerts for shooting/robbery near campus.</p>
-      <p class="text-[#687586]">API Status: Ready for OpenMHz / public scanner feeds.<br>
-      Example endpoint: <code class="text-xs">https://api.openmhz.com/{shortName}/calls</code></p>
-      <p class="text-xs text-[#687586]">See README for connecting real police scanner call data (OpenMHz, Broadcastify Calls, or local open data).</p>
+      <p><strong>Map center:</strong> ${currentCenter.map(n => n.toFixed(4)).join(", ")} (geolocation or fallback)</p>
+      <p><strong>OpenMHz system:</strong> ${OPENMHZ_SHORTNAME} (Washtenaw County example)<br>
+      Genesee County has no public OpenMHz system yet. Many police talkgroups are encrypted.</p>
+      <p class="text-[#687586]">Endpoint: <code class="text-xs">${OPENMHZ_API}</code></p>
+      <p class="text-xs text-[#687586]">Direct browser calls are often blocked by CORS/Cloudflare. A small proxy is needed for reliable production use. Sample incidents remain available.</p>
     </div>
   `;
   document.getElementById("modal").classList.remove("hidden");
 }
 
-// Global for popup buttons
 window.showDetails = showDetails;
