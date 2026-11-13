@@ -1,1 +1,106 @@
-PLACEHOLDER_FOR_FULL_HTML_WITH_DATA_URL
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trace – Crime Awareness for Flint</title>
+  <meta name="description" content="Trace: Location-based crime awareness and public safety app inspired by CrimeRadar. Focused on University of Michigan-Flint and Genesee County.">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --graphite: #20262E;
+      --electric-lime: #B7E445;
+      --cloud-white: #F4F6F8;
+      --slate-gray: #687586;
+      --signal-amber: #F0A23A;
+    }
+    body { font-family: 'Inter', system-ui, sans-serif; background: var(--graphite); color: var(--cloud-white); }
+    #map { height: 100%; width: 100%; }
+    .leaflet-popup-content { margin: 8px 12px; }
+    .auth-screen { min-height: 100vh; background: linear-gradient(135deg, #20262E 0%, #2a323c 100%); }
+    .incident-card:hover { background: #2a323c; }
+    .logo { object-fit: contain; background: #000; }
+  </style>
+</head>
+<body class="bg-[#20262E] text-[#F4F6F8]">
+  <!-- Auth Screen -->
+  <div id="authScreen" class="auth-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-[#20262E]/90 backdrop-blur rounded-2xl p-8 shadow-2xl border border-[#687586]/40">
+      <div class="text-center mb-8">
+        <img src="logo.jpg" alt="Trace Logo" class="inline-block w-20 h-20 mb-4 logo rounded-full">
+        <h1 class="text-3xl font-bold tracking-tight">Trace</h1>
+        <p class="text-[#687586] mt-1">Welcome back.</p>
+        <p class="text-sm text-[#687586]">Sign in to your Trace experience.</p>
+      </div>
+      <form id="loginForm" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium mb-1 text-[#F4F6F8]">Email *</label>
+          <input type="email" id="email" placeholder="you@example.com" class="w-full px-4 py-3 rounded-lg bg-[#2a323c] border border-[#687586]/50 focus:border-[#B7E445] focus:outline-none text-[#F4F6F8]" required>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1 text-[#F4F6F8]">Password *</label>
+          <input type="password" id="password" placeholder="Enter your password" class="w-full px-4 py-3 rounded-lg bg-[#2a323c] border border-[#687586]/50 focus:border-[#B7E445] focus:outline-none text-[#F4F6F8]" required>
+        </div>
+        <button type="button" class="text-sm text-[#B7E445] hover:text-[#c5ed6a]">Forgot Password?</button>
+        <button type="submit" class="w-full bg-[#B7E445] hover:bg-[#c5ed6a] text-[#20262E] font-semibold py-3 rounded-lg transition">Sign In</button>
+      </form>
+      <p class="text-center text-sm text-[#687586] mt-6">New to Trace? <button id="showCreate" class="text-[#B7E445] hover:underline">Create Account</button></p>
+      <p class="text-center text-xs text-[#687586] mt-4">Prototype only · No real accounts are created.</p>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div id="app" class="hidden h-screen flex flex-col">
+    <header class="bg-[#20262E] border-b border-[#687586]/40 px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <img src="logo.jpg" alt="Trace" class="w-10 h-10 logo rounded-full">
+        <div>
+          <h1 class="text-xl font-bold">Trace</h1>
+          <p class="text-xs text-[#687586]">Flint / UM-Flint • Genesee County</p>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button id="filterBtn" class="px-3 py-2 rounded-lg bg-[#2a323c] hover:bg-[#323a45] text-sm border border-[#687586]/30">Filters</button>
+        <button id="reportBtn" class="px-3 py-2 rounded-lg bg-[#B7E445] hover:bg-[#c5ed6a] text-[#20262E] text-sm font-medium">Report</button>
+        <button id="settingsBtn" class="px-3 py-2 rounded-lg bg-[#2a323c] hover:bg-[#323a45] text-sm border border-[#687586]/30">Settings</button>
+        <button id="logoutBtn" class="px-3 py-2 rounded-lg bg-[#2a323c] hover:bg-[#323a45] text-sm border border-[#687586]/30">Logout</button>
+      </div>
+    </header>
+
+    <div class="flex-1 flex overflow-hidden">
+      <!-- Sidebar -->
+      <aside class="w-80 bg-[#20262E] border-r border-[#687586]/40 flex flex-col">
+        <div class="p-4 border-b border-[#687586]/40">
+          <h2 class="font-semibold">Recent Incidents</h2>
+          <p class="text-xs text-[#687586]">From public records & scanner-style feeds</p>
+        </div>
+        <div id="incidentList" class="flex-1 overflow-y-auto p-2 space-y-2"></div>
+      </aside>
+
+      <!-- Map -->
+      <main class="flex-1 relative">
+        <div id="map" class="absolute inset-0"></div>
+        <div id="filterPanel" class="hidden absolute top-4 left-4 bg-[#20262E]/95 backdrop-blur rounded-xl p-4 shadow-xl border border-[#687586]/40 z-[1000] w-64">
+          <h3 class="font-semibold mb-3">Filter by Type</h3>
+          <div id="filterOptions" class="space-y-2 text-sm"></div>
+          <button id="clearFilters" class="mt-3 text-xs text-[#B7E445] hover:underline">Clear all</button>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Modals -->
+  <div id="modal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-[2000] p-4">
+    <div class="bg-[#20262E] rounded-xl p-6 max-w-md w-full border border-[#687586]/40">
+      <h3 id="modalTitle" class="text-lg font-semibold mb-4"></h3>
+      <div id="modalBody"></div>
+      <button id="modalClose" class="mt-4 w-full bg-[#2a323c] hover:bg-[#323a45] py-2 rounded-lg border border-[#687586]/30">Close</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
