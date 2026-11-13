@@ -2,50 +2,47 @@
 
 **Trace** is a location-based crime awareness and public safety application designed for residents and students around the University of Michigan–Flint and Genesee County.
 
-Inspired by **CrimeRadar**, it provides an interactive map of incidents, filters by crime type, incident details, user reporting, and a structure ready for live police scanner / dispatch call data.
+Inspired by **CrimeRadar**, it provides an interactive map of incidents, filters by crime type, incident details, user reporting, and live-style police scanner call integration via OpenMHz.
 
 This repository was created for the CSC-510 group project.
 
 ## Features (Prototype)
 
 - Mock authentication matching the deployed prototype style
-- Interactive Leaflet map centered on UM-Flint
-- Incident list + map markers with severity colors
-- Filters by crime type (Shooting, Robbery, Assault, Theft, etc.)
+- **Geolocation**: centers the map on your current location (falls back to UM-Flint)
+- Interactive Leaflet map with severity-colored markers
+- Incident list + filters by crime type
 - View incident details
-- Report an incident (local simulation)
-- Settings / notifications placeholder
-- Ready for OpenMHz-style scanner call API integration
+- Report an incident (local simulation, placed near your location)
+- **OpenMHz integration**: attempts to load recent scanner calls and place approximate pins
+- Settings panel with location and API status
 
 ## Quick Start
 
 ```bash
-# Serve locally (any static server)
 npx serve .
 # or
 python -m http.server 8080
 ```
 
-Open `http://localhost:8080` (or the port shown).
+Open `http://localhost:8080`. Sign in with any email/password (prototype only).
 
-Sign in with any email/password (prototype only).
+Allow location permission when prompted for the best experience.
 
-## Connecting Real Police Scanner / Call Data
+## OpenMHz Scanner Integration
 
-Trace is structured to ingest call metadata similar to open-source scanner platforms:
+The app tries to fetch recent calls from an OpenMHz system:
 
-- **OpenMHz** (open source: [openmhz/trunk-server](https://github.com/openmhz/trunk-server))  
-  Public API pattern: `https://api.openmhz.com/{shortName}/calls`  
-  (Note: Cloudflare protection may require a backend proxy.)
+- Default system: `mpscs81` (MPSCS Washtenaw County – nearby Michigan example)
+- Endpoint: `https://api.openmhz.com/{shortName}/calls`
+- Calls are mapped to approximate locations around your current map center (radio calls rarely include precise GPS)
 
-- **Broadcastify Calls** – managed ingest for P25 systems (Genesee County has nodes on Michigan’s MPSCS).
+**Notes:**
+- Genesee County does not currently have a public OpenMHz system. Many local police talkgroups are encrypted.
+- Direct browser requests are frequently blocked by CORS or Cloudflare. The app falls back gracefully to sample incidents.
+- For reliable production use, add a small backend proxy (Cloudflare Worker, Node, etc.).
 
-- Local open data / police blotters for historical incidents.
-
-To integrate:
-1. Add a small backend proxy (Node/Express, Cloudflare Worker, etc.) that fetches from the scanner API.
-2. Map the returned call objects to the incident format used in `app.js` (`type`, `lat`/`lng` if available, `time`, `description`, `source`).
-3. Replace or merge with `SAMPLE_INCIDENTS`.
+Other Michigan systems exist on OpenMHz (Macomb, Berrien, Kalamazoo, Houghton, University of Michigan, etc.). Change `OPENMHZ_SHORTNAME` in `app.js` to experiment.
 
 ## Project Background
 
