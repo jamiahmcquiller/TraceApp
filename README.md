@@ -10,12 +10,12 @@ This repository was created for the CSC-510 group project.
 
 - Mock authentication matching the deployed prototype style
 - **Geolocation**: centers the map on your current location (falls back to UM-Flint)
+- **Location-based OpenMHz**: automatically selects the most relevant available scanner system based on where you are (Flint area, Detroit metro, etc.)
 - Interactive Leaflet map with severity-colored markers
 - Incident list + filters by crime type
 - View incident details
 - Report an incident (local simulation, placed near your location)
-- **OpenMHz integration**: attempts to load recent scanner calls and place approximate pins
-- Settings panel with location and API status
+- Settings panel with location and active system status
 
 ## Quick Start
 
@@ -27,22 +27,23 @@ python -m http.server 8080
 
 Open `http://localhost:8080`. Sign in with any email/password (prototype only).
 
-Allow location permission when prompted for the best experience.
+Allow location permission when prompted. The map and scanner system will adapt to your position.
 
 ## OpenMHz Scanner Integration
 
-The app tries to fetch recent calls from an OpenMHz system:
+The app selects an OpenMHz system based on your location and tries to load recent calls:
 
-- Default system: `mpscs81` (MPSCS Washtenaw County – nearby Michigan example)
-- Endpoint: `https://api.openmhz.com/{shortName}/calls`
-- Calls are mapped to approximate locations around your current map center (radio calls rarely include precise GPS)
+- Flint / Genesee area → Washtenaw County fallback (`mpscs81`) — no public Genesee system exists
+- Detroit metro → Washtenaw County fallback (closest public system; no dedicated Detroit/Wayne OpenMHz feed currently)
+- Other locations → closest known system (Washtenaw, Houghton, etc.)
+
+Calls are mapped to approximate locations around your current map center (radio calls rarely include precise GPS).
 
 **Notes:**
-- Genesee County does not currently have a public OpenMHz system. Many local police talkgroups are encrypted.
+- Many police talkgroups in Genesee County and the Detroit area are encrypted.
 - Direct browser requests are frequently blocked by CORS or Cloudflare. The app falls back gracefully to sample incidents.
 - For reliable production use, add a small backend proxy (Cloudflare Worker, Node, etc.).
-
-Other Michigan systems exist on OpenMHz (Macomb, Berrien, Kalamazoo, Houghton, University of Michigan, etc.). Change `OPENMHZ_SHORTNAME` in `app.js` to experiment.
+- More systems can be added to the `OPENMHZ_SYSTEMS` array in `app.js` as they become available on OpenMHz.
 
 ## Project Background
 
