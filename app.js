@@ -1,4 +1,4 @@
-// PHASE App – Crime Awareness for Flint / UM-Flint
+// Trace App – Crime Awareness for Flint / UM-Flint
 // Inspired by CrimeRadar. Connects to public scanner-style data (OpenMHz-compatible structure).
 // Mock auth + sample incidents for prototype. Real API integration ready.
 
